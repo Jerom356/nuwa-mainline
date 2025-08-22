@@ -8057,7 +8057,7 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
 	struct fts_config_info *config_info;
 	u32 temp_val;
 
-	bdata->irq_gpio = of_get_named_gpio_flags(np, "fts,irq-gpio", 0, NULL);
+	bdata->irq_gpio = of_get_named_gpio(np, "fts,irq-gpio", 0);
 
 	logError(0, "%s irq_gpio = %d\n", tag, bdata->irq_gpio);
 	retval = of_property_read_string(np, "fts,pwr-reg-name", &name);
@@ -8082,7 +8082,7 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
 
 	if (of_property_read_bool(np, "fts,reset-gpio-enable")) {
 		bdata->reset_gpio =
-			of_get_named_gpio_flags(np, "fts,reset-gpio", 0, NULL);
+			of_get_named_gpio(np, "fts,reset-gpio", 0);
 		logError(0, "%s reset_gpio =%d\n", tag, bdata->reset_gpio);
 	} else {
 		bdata->reset_gpio = GPIO_NOT_DEFINED;
