@@ -8,6 +8,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
+#include <linux/regulator/consumer.h>
 
 #include <video/mipi_display.h>
 
@@ -190,7 +191,7 @@ static int m2_38_0c_0a_dsc_prepare(struct drm_panel *panel)
 		dev_err(dev, "failed to enable avdd regulator: %d\n", ret);
 		return ret;
 	}
-	
+
 	ret = regulator_enable(ctx->vci);
 	if (ret) {
 		dev_err(dev, "failed to enable vci regulator: %d\n", ret);
@@ -202,7 +203,7 @@ static int m2_38_0c_0a_dsc_prepare(struct drm_panel *panel)
 		dev_err(dev, "failed to enable vddio regulator: %d\n", ret);
 		return ret;
 	}
-	
+
 	ret = regulator_enable(ctx->vddd);
 	if (ret) {
 		dev_err(dev, "failed to enable vddd regulator: %d\n", ret);
