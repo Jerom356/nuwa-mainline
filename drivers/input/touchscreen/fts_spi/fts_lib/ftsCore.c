@@ -110,8 +110,9 @@ int fts_system_reset(void)
 					    ARRAY_SIZE(data));
 		} else {
 			gpio_set_value(reset_gpio, 0);
-			mdelay(10);
+			usleep_range(10000, 11000);
 			gpio_set_value(reset_gpio, 1);
+			msleep(200);
 			res = OK;
 		}
 		if (res < OK) {
@@ -233,7 +234,9 @@ int pollForEvent(int *event_to_search, int event_bytes, u8 *readData,
 					 printHex("READ EVENT = ", readData,
 						  FIFO_EVENT_SIZE, temp));
 				memset(temp, 0, 128);
-			}
+			} else
+				logError(1,"%s DEBUG: %02x %02x %02x", tag,
+					readData[0], readData[1], readData[2]);
 			if (readData[0] == EVT_ID_CONTROLLER_READY &&
 			    event_to_search[0] != EVT_ID_CONTROLLER_READY) {
 				logError(
@@ -250,6 +253,7 @@ int pollForEvent(int *event_to_search, int event_bytes, u8 *readData,
 		for (i = 0; i < event_bytes; i++) {
 			if (event_to_search[i] != -1 &&
 			    (int)readData[i] != event_to_search[i]) {
+			    logError(1, "%s DEBUG pollEvent: %u", tag, readData[i]);
 				find = 0;
 				break;
 			}
