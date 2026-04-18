@@ -350,6 +350,9 @@ struct fts_ts_info {
 	struct regulator *avdd_reg;
 	struct regulator *avddold_reg;
 
+	struct gpio_desc *irq_gpio;
+	struct gpio_desc *reset_gpio;
+
 	int resume_bit;
 	int fwupdate_stat;
 

@@ -1044,11 +1044,8 @@
 			vdd-supply = <&vreg_l12b_1p8>;
 			fts,pwr-reg-name = "avdd";
 			fts,bus-reg-name = "vdd";
-			fts,irq-gpio = <&tlmm 25 0x2008>;
-			fts,irq-gpio-name = "fts_irq";
-			fts,reset-gpio-enable;
-			fts,reset-gpio = <&tlmm 24 0x00>;
-			fts,reset-gpio-name = "fts_rst";
+			fts,irq-gpios = <&tlmm 25 0x2008>;
+			fts,reset-gpios = <&tlmm 24 0x00>;
 			fts,irq-flags = <0x2008>;
 
 			fts,x-max = <14400>;

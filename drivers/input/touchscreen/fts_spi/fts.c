@@ -5831,37 +5831,18 @@ exit:
  * @param state initial value (if the direction is in, this parameter is ignored)
  * return error code
  */
-static int fts_gpio_setup(int gpio, bool config, int dir, int state)
+static int fts_gpio_setup(struct fts_ts_info *info)
 {
 	int retval = 0;
-	unsigned char buf[16];
+	struct device *dev = info->dev;
 
-	if (config) {
-		if (!fts_info->gpio_has_request) {
-			snprintf(buf, 16, "fts_gpio_%u\n", gpio);
-			retval = gpio_request(gpio, buf);
-			if (retval) {
-				logError(
-					1,
-					"%s %s: Failed to get gpio %d (code: %d)",
-					tag, __func__, gpio, retval);
-				return retval;
-			}
-		}
+	info->irq_gpio = devm_gpiod_get(dev, "fts,irq", GPIOD_IN);
+	if(IS_ERR(info->irq_gpio)) return PTR_ERR(info->irq_gpio);
 
-		if (dir == 0)
-			retval = gpio_direction_input(gpio);
-		else
-			retval = gpio_direction_output(gpio, state);
-		if (retval) {
-			logError(1, "%s %s: Failed to set gpio %d direction",
-				 tag, __func__, gpio);
-			return retval;
-		}
-	} else {
-		gpio_free(gpio);
-	}
+	info->reset_gpio = devm_gpiod_get(dev, "fts,reset", GPIOD_OUT_LOW);
+	if(IS_ERR(info->reset_gpio)) return PTR_ERR(info->reset_gpio);
 
+	info->gpio_has_request = true;
 	return retval;
 }
 
@@ -5869,42 +5850,13 @@ static int fts_gpio_setup(int gpio, bool config, int dir, int state)
  * Setup the IRQ and RESET (if present) gpios.
  * If the Reset Gpio is present it will perform a cycle HIGH-LOW-HIGH in order to assure that the IC has been reset properly
  */
-static int fts_set_gpio(struct fts_ts_info *info, bool alway_output_low)
+static int fts_set_gpio(struct fts_ts_info *info, bool always_output_low)
 {
 	int retval;
-	struct fts_hw_platform_data *bdata = info->board;
 
-	retval = fts_gpio_setup(bdata->irq_gpio, true, 0, 0);
-	if (retval < 0) {
-		logError(1, "%s %s: Failed to configure irq GPIO\n", tag,
-			 __func__);
-		goto err_gpio_irq;
-	}
-
-	if (bdata->reset_gpio >= 0) {
-		retval = fts_gpio_setup(bdata->reset_gpio, true, 1,
-					alway_output_low ? 0 : 1);
-		if (retval < 0) {
-			logError(1, "%s %s: Failed to configure reset GPIO\n",
-				 tag, __func__);
-			goto err_gpio_reset;
-		}
-	}
-	info->gpio_has_request = true;
-	/*
-	if (bdata->reset_gpio >= 0) {
-		gpio_set_value(bdata->reset_gpio, 0);
-		mdelay(10);
-		gpio_set_value(bdata->reset_gpio, 1);
-	}
-*/
+	retval = gpiod_set_value_cansleep(info->reset_gpio, always_output_low ? 0 : 1);
+	if (retval) return retval;
 	return OK;
-
-err_gpio_reset:
-	fts_gpio_setup(bdata->irq_gpio, false, 0, 0);
-	bdata->reset_gpio = GPIO_NOT_DEFINED;
-err_gpio_irq:
-	return retval;
 }
 
 static int fts_pinctrl_init(struct fts_ts_info *info)
@@ -5960,9 +5912,6 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
 	struct fts_config_info *config_info;
 	u32 temp_val;
 
-	bdata->irq_gpio = of_get_named_gpio(np, "fts,irq-gpio", 0);
-
-	logError(0, "%s irq_gpio = %d\n", tag, bdata->irq_gpio);
 	retval = of_property_read_string(np, "fts,pwr-reg-name", &name);
 	if (retval == -EINVAL)
 		bdata->avdd_reg_name = NULL;
@@ -5990,14 +5939,6 @@ static int parse_dt(struct device *dev, struct fts_hw_platform_data *bdata)
 	} else {
 		logError(0,"%s get avdd-gpio[%d] from dt\n", tag, retval);
 		bdata->avdd_gpio = retval;
-	}
-
-	if (of_property_read_bool(np, "fts,reset-gpio-enable")) {
-		bdata->reset_gpio =
-			of_get_named_gpio(np, "fts,reset-gpio", 0);
-		logError(0, "%s reset_gpio =%d\n", tag, bdata->reset_gpio);
-	} else {
-		bdata->reset_gpio = GPIO_NOT_DEFINED;
 	}
 
 	retval = of_property_read_u32(np, "fts,irq-flags", &temp_val);
@@ -6725,7 +6666,7 @@ static int fts_probe(struct spi_device *client)
 	}
 	logError(0, "%s SET GPIOS: \n", tag);
 	info->gpio_has_request = false;
-	retval = fts_set_gpio(info, true);
+	retval = fts_gpio_setup(info);
 	if (retval < 0) {
 		logError(1, "%s %s: ERROR Failed to set up GPIO's\n", tag,
 			 __func__);
@@ -6767,16 +6708,9 @@ static int fts_probe(struct spi_device *client)
 	}
 
 	mdelay(3);
-	retval = fts_set_gpio(info, false);
-	if (retval < 0) {
-		logError(1, "%s %s: ERROR Failed to set up GPIO's\n", tag,
-			 __func__);
-		error = retval;
-		goto ProbeErrorExit_3_1;
-	}
-
-	info->client->irq = gpio_to_irq(info->board->irq_gpio);
-	logError(1, "%s gpio_num:%d, irq:%d\n", tag, info->board->irq_gpio,
+	fts_set_gpio(info, false);
+	info->client->irq = gpiod_to_irq(info->irq_gpio);
+	logError(1, "%s gpio_irq:%d\n", tag,
 		 info->client->irq);
 
 	logError(0, "%s SET Event Handler: \n", tag);
@@ -6787,7 +6721,7 @@ static int fts_probe(struct spi_device *client)
 	if (!info->event_wq) {
 		logError(1, "%s ERROR: Cannot create work thread\n", tag);
 		error = -ENOMEM;
-		goto ProbeErrorExit_4;
+		return error;
 	}
 
 	info->irq_wq = alloc_workqueue(
@@ -6795,7 +6729,7 @@ static int fts_probe(struct spi_device *client)
 	if (!info->irq_wq) {
 		logError(1, "%s ERROR: Cannot create irq work thread\n", tag);
 		error = -ENOMEM;
-		goto ProbeErrorExit_4;
+		return error;
 	}
 
 	info->fps_wq = alloc_workqueue(
@@ -6803,7 +6737,7 @@ static int fts_probe(struct spi_device *client)
 	if (!info->fps_wq) {
 		logError(1, "%s ERROR: Cannot create fps thread\n", tag);
 		error = -ENOMEM;
-		goto ProbeErrorExit_4;
+		return error;
 	}
 
 	mutex_init(&info->fod_mutex);
@@ -7153,10 +7087,6 @@ ProbeErrorExit_5:
 	destroy_workqueue(info->event_wq);
 	destroy_workqueue(info->fps_wq);
 
-ProbeErrorExit_4:
-	fts_gpio_setup(info->board->irq_gpio, false, 0, 0);
-	fts_gpio_setup(info->board->reset_gpio, false, 0, 0);
-
 ProbeErrorExit_3_1:
 	fts_enable_reg(info, false);
 
@@ -7230,8 +7160,6 @@ static void fts_remove(struct spi_device *client)
 
 	fts_enable_reg(info, false);
 	fts_get_reg(info, false);
-	fts_gpio_setup(info->board->irq_gpio, false, 0, 0);
-	fts_gpio_setup(info->board->reset_gpio, false, 0, 0);
 	fts_info = NULL;
 #ifdef CONFIG_SECURE_TOUCH
 	fts_secure_remove(info);
