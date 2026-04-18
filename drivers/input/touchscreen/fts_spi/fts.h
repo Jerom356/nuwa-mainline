@@ -184,7 +184,7 @@
 #define GRIP_PARAMETER_NUM 8
 #define EXPERT_ARRAY_SIZE 3
 
-#define CONFIG_FTS_POWERSUPPLY_CB
+// #define CONFIG_FTS_POWERSUPPLY_CB
 
 enum charge_status {
 	NOT_CHARGING,
