@@ -98,7 +98,7 @@
 
 #define FTS_DEBUG_FS
 
-// #define DEBUG
+// #define FTS_DEBUG
 
 /*#define USE_ONE_FILE_NODE*/
 
