@@ -2619,6 +2619,23 @@ static int haptics_upload_effect(struct input_dev *dev,
 	}
 
 	switch (effect->type) {
+        case FF_RUMBLE:
+                length_us = effect->replay.length * USEC_PER_MSEC;
+                level = effect->u.rumble.strong_magnitude;
+                tmp = get_direct_play_max_amplitude(chip);
+                tmp *= level;
+                amplitude = tmp / 0xffff;
+
+                dev_dbg(chip->dev, "upload rumble effect, length = %dus, amplitude = %#x\n",
+                                length_us, amplitude);
+                haptics_load_constant_effect(chip, amplitude);
+
+                if (rc < 0) {
+                        dev_err(chip->dev, "set rumble play failed, rc=%d\n",
+                                        rc);
+                        return rc;
+                }
+                break;
 	case FF_CONSTANT:
 		length_us = effect->replay.length * USEC_PER_MSEC;
 		level = effect->u.constant.level;
@@ -5588,6 +5605,7 @@ static int haptics_probe(struct platform_device *pdev)
 	chip->input_dev = input_dev;
 
 	input_set_capability(input_dev, EV_FF, FF_CONSTANT);
+	input_set_capability(input_dev, EV_FF, FF_RUMBLE);
 	input_set_capability(input_dev, EV_FF, FF_GAIN);
 	if ((chip->effects_count != 0) || (chip->primitives_count != 0)) {
 		input_set_capability(input_dev, EV_FF, FF_PERIODIC);
@@ -5600,6 +5618,7 @@ static int haptics_probe(struct platform_device *pdev)
 
 	set_bit(EV_FF, input_dev->evbit);
 	set_bit(FF_CONSTANT, input_dev->ffbit);
+	set_bit(FF_RUMBLE, input_dev->ffbit);
 
 	if (chip->effects_count + chip->primitives_count > MAX_EFFECT_COUNT)
 		dev_err(chip->dev, "Effects count cannot be more than %d\n", MAX_EFFECT_COUNT);
