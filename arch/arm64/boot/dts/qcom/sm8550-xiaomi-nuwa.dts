@@ -926,6 +926,15 @@
  status = "okay";
 };
 
+&spi9 {
+       status = "okay";
+       ir-spi@0 {
+               reg = <0>;
+               compatible = "ir-spi";
+               spi-max-frequency = <19200000>;
+       };
+};
+
 &i2c_master_hub_0 {
 	status = "okay";
 };
@@ -1009,6 +1018,19 @@
 	firmware-name = "qcom/sm8550/nuwa/modem.mbn",
 			"qcom/sm8550/nuwa/modem_dtb.mbn";
 	status = "okay";
+};
+
+&pm8550_flash {
+       status = "okay";
+       led-0 {
+               function = LED_FUNCTION_FLASH;
+               color = <LED_COLOR_ID_WHITE>;
+               led-sources = <1>, <2>; // Combine both LEDs into one
+               led-max-microamp = <500000>;
+               flash-max-microamp = <2000000>;
+               flash-max-timeout-us = <1280000>;
+               function-enumerator = <0>;
+       };
 };
 
 &spi4 {
@@ -1400,6 +1422,12 @@
 		bias-pull-down;
 		drive-strength = <2>;
 	};
+	lpi_spi2_default: lpi-spi2-default-state {
+               /* MISO, MOSI, CLK, CS */
+               pins = "gpio192", "gpio193", "gpio194", "gpio195";
+               function = "gpio";
+       };
+
 };
 
 &uart14 {
