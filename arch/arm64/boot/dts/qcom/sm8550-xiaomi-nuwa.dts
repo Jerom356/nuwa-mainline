@@ -21,6 +21,10 @@
 /* Xiaomi uses alternative gpio's for i2c8 */
 /delete-node/ &qup_i2c8_data_clk;
 
+/* Xiaomi's changes for mclk pins (drv strength 2 -> 4) */
+/delete-node/ &cam1_default;
+/delete-node/ &cam3_default;
+
 / {
 	model = "Xiaomi 13 Pro";
 	compatible = "xiaomi,nuwa", "qcom,sm8550";
@@ -142,6 +146,30 @@
 		pinctrl-0 = <&display_vddd_default>;
 		regulator-boot-on;
 		regulator-always-on;
+	};
+
+	camera_tele_avdd_ldo: gpio-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "camera_tele_avdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&tlmm 57 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_tele_active_avdd>;
+	};
+
+	camera_ultra_avdd_ldo: gpio-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "camera_ultra_avdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&tlmm 91 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_ultra_active_avdd>;
 	};
 
 	vph_pwr: vph-pwr-regulator {
@@ -899,6 +927,113 @@
 	};
 };
 
+&camss {
+	vdda-phy-supply = <&vreg_l1e_0p88>;
+	vdda-pll-supply = <&vreg_l3e_1p2>;
+
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@3 {
+			reg = <3>;
+
+			csiphy3_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				remote-endpoint = <&s5kjn1_tele_ep>;
+			};
+		};
+
+		port@5 {
+			reg = <5>;
+
+			csiphy5_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				remote-endpoint = <&s5kjn1_uw_ep>;
+			};
+		};
+	};
+};
+
+&cci1 {
+	status = "okay";
+};
+
+&cci1_i2c0 {
+	clock-frequency = <1000000>;
+
+	camera@3d { // UW
+		compatible = "samsung,s5kjn1";
+		reg = <0x3d>;
+		status = "okay";
+
+		reset-gpios = <&tlmm 117 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam1_default>, <&cam_uw_reset_default>;
+
+		clocks = <&camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "mclk";
+		clock-frequency = <19200000>;
+
+		orientation = <1>;
+		rotation = <180>;
+
+		vddio-supply = <&vreg_l5m_1p8>;
+		vddd-supply = <&vreg_l1c_0p91>;
+		vdda-supply = <&camera_ultra_avdd_ldo>;
+
+		port {
+			s5kjn1_uw_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				link-frequencies = /bits/ 64 <857600000>;
+				remote-endpoint = <&csiphy5_ep>;
+			};
+		};
+	};
+};
+
+/*
+ * Currently returns error: failed to write reg 0x0100: -6 when launched using qcam
+ * Although the driver itself probes. But we will keep it just in case..
+ */
+
+&cci0 {
+	status = "okay";
+};
+
+&cci0_i2c0 {
+	clock-frequency = <1000000>;
+
+	camera@2d { // TELE
+		compatible = "samsung,s5kjn1";
+		reg = <0x2d>;
+
+		reset-gpios = <&tlmm 119 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam3_default>, <&cam_tele_reset_default>;
+
+		clocks = <&camcc CAM_CC_MCLK3_CLK>;
+		clock-names = "mclk";
+		clock-frequency = <19200000>;
+
+		orientation = <1>;
+		rotation = <180>;
+
+		vddio-supply = <&vreg_l5m_1p8>;
+		vddd-supply = <&vreg_l2c_1p056>;
+		vdda-supply = <&camera_tele_avdd_ldo>;
+
+		port {
+			s5kjn1_tele_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				link-frequencies = /bits/ 64 <857600000>;
+				remote-endpoint = <&csiphy3_ep>;
+			};
+		};
+	};
+};
+
 &ipa {
 	qcom,gsi-loader = "self";
 	memory-region = <&ipa_fw_mem>;
@@ -924,6 +1059,15 @@
 
 &dispcc {
  status = "okay";
+};
+
+&spi9 {
+       status = "okay";
+       ir-spi@0 {
+               reg = <0>;
+               compatible = "ir-spi";
+               spi-max-frequency = <19200000>;
+       };
 };
 
 &i2c_master_hub_0 {
@@ -1009,6 +1153,19 @@
 	firmware-name = "qcom/sm8550/nuwa/modem.mbn",
 			"qcom/sm8550/nuwa/modem_dtb.mbn";
 	status = "okay";
+};
+
+&pm8550_flash {
+       status = "okay";
+       led-0 {
+               function = LED_FUNCTION_FLASH;
+               color = <LED_COLOR_ID_WHITE>;
+               led-sources = <1>, <2>; // Combine both LEDs into one
+               led-max-microamp = <500000>;
+               flash-max-microamp = <2000000>;
+               flash-max-timeout-us = <1280000>;
+               function-enumerator = <0>;
+       };
 };
 
 &spi4 {
@@ -1115,6 +1272,10 @@
 			};
 		};
 	};
+};
+
+&pm8550b_haptics {
+	status = "okay";
 };
 
 &pcie0 {
@@ -1396,6 +1557,52 @@
 		bias-pull-down;
 		drive-strength = <2>;
 	};
+	lpi_spi2_default: lpi-spi2-default-state {
+               /* MISO, MOSI, CLK, CS */
+               pins = "gpio192", "gpio193", "gpio194", "gpio195";
+               function = "gpio";
+       };
+
+	cam_sensor_tele_active_avdd: cam_sensor_tele_active_avdd {
+               pins = "gpio57";
+               function = "gpio";
+	       bias-disable;
+               drive-strength = <2>;
+       };
+       cam_sensor_ultra_active_avdd: cam_sensor_ultra_active_avdd {
+	       pins = "gpio91";
+               function = "gpio";
+               bias-disable;
+	       drive-strength = <2>;
+       };
+       cam1_default: cam1-default-state {
+	   mclk-pins {
+	       pins = "gpio101";
+               function = "cam_mclk";
+               bias-disable;
+	       drive-strength = <4>;
+          };
+       };
+       cam3_default: cam3-default-state {
+	  mclk-pins {
+               pins = "gpio103";
+	       function = "cam_mclk";
+               bias-disable;
+               drive-strength = <4>;
+	  };
+       };
+       cam_tele_reset_default: cam-tele-reset-default-state {
+               pins = "gpio119";
+               function = "gpio";
+               bias-disable;
+               drive-strength = <4>;
+       };
+       cam_uw_reset_default: cam-uw-reset-default-state {
+               pins = "gpio117";
+		function = "gpio";
+               bias-disable;
+                drive-strength = <4>;
+       };
 };
 
 &uart14 {
